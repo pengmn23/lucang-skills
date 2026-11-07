@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手绘笔记风配图工具</title>
+<!--
+  手绘笔记风配图工具（新版教程配图，风格见 02_写作资料/配图风格规定.md）
+  用法：
+  1. 用 Chrome 打开这个文件：从模板新建或打开 specs/ 里的 JSON，在图上直接拖动、点选修改，⌘S 存回原文件。
+  2. 命令行出图（Agent 用）：python3 render.py specs/xxx.json
+  3. 网址带 #spec=<base64url 编码的 JSON>：只渲染图片（render.py 这样调用）；带 #edit&spec=...：打开编辑器并载入这份 JSON。
+  说明见同目录 README.md。
+-->
+<style>
+  :root { --ui: -apple-system, "PingFang SC", sans-serif; --line: #D9D2C3; --bg: #EFEAE0; --panel: #FBF9F4; --ink: #2B2B2B; --accent: #2F80ED; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 13px; }
+  button, select { font: inherit; padding: 5px 9px; border: 1px solid #BDB5A4; background: #fff; border-radius: 6px; cursor: pointer; color: var(--ink); }
+  button:hover, select:hover { border-color: #8A8272; }
+  button.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+  button.on { background: #FFE47A; border-color: #C9A400; }
+  #bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  #bar .brand { font-weight: 700; margin-right: 6px; }
+  #bar .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
+  #main { display: grid; grid-template-columns: 340px 1fr 320px; height: calc(100vh - 47px); }
+  #main.fold { grid-template-columns: 1fr 320px; }
+  #main.fold #left { display: none; }
+  @media (max-width: 1250px) { #main:not(.fold) { grid-template-columns: 300px 1fr; } #main:not(.fold) #right { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); } #main { height: auto; } }
+  @media (max-width: 860px) { #main, #main.fold { grid-template-columns: 1fr; height: auto; } #right { border-left: 0; border-top: 1px solid var(--line); } #left { max-height: 60vh; } }
+  #left, #right { background: var(--panel); overflow: auto; padding: 10px; }
+  #left { border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+  #right { border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+  .ph { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+  .ph .grow { flex: 1; }
+  textarea { width: 100%; font: 12px/1.45 Menlo, monospace; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; resize: vertical; }
+  #src { flex: 1; min-height: 300px; }
+  #selJson { height: 210px; }
+  .err { color: #C0392B; font-size: 12px; white-space: pre-wrap; }
+  .hint { color: #7A7262; font-size: 12px; line-height: 1.5; }
+  #center { overflow: auto; padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #stage svg { width: 100%; max-width: 1200px; height: auto; box-shadow: 0 2px 14px rgba(0,0,0,.18); display: block; background: #FAF6EC; user-select: none; }
+  #stage { width: 100%; display: flex; justify-content: center; }
+  #stage [data-path] { cursor: move; }
+  #stage [data-path^="edges"] { cursor: pointer; }
+  #status { color: #7A7262; font-size: 12px; text-align: center; }
+  h3 { margin: 0 0 6px; font-size: 13px; }
+  #warnList { margin: 0; padding-left: 18px; }
+  #warnList li { margin: 3px 0; cursor: pointer; }
+  #warnList li:hover { color: var(--accent); }
+  .ok { color: #3C8D4E; }
+  .gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .gallery div { border: 1px solid var(--line); border-radius: 6px; background: #fff; text-align: center; padding: 4px 2px; cursor: pointer; font-size: 11px; }
+  .gallery div:hover { border-color: var(--accent); }
+  .keys { margin: 0; padding-left: 16px; line-height: 1.7; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 8px 14px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: .92; }
+  body.render { background: #FAF6EC; }
+  body.render #bar, body.render #left, body.render #right, body.render #status { display: none; }
+  body.render #main { display: block; height: auto; }
+  body.render #center { padding: 0; display: block; }
+  body.render #stage svg { width: auto; max-width: none; box-shadow: none; }
+</style>
+</head>
+<body>
+<header id="bar">
+  <span class="brand">手绘笔记风配图</span>
+  <select id="tpl" title="从模板新建一张图"><option value="">＋ 新建…</option></select>
+  <button id="bOpen" title="打开 specs 里的 JSON（也可以把文件拖进来）">打开</button>
+  <button id="bSave" title="⌘S：存回原文件">保存</button>
+  <button id="bSaveAs">另存为</button>
+  <span class="sep"></span>
+  <button id="bUndo" title="⌘Z">撤销</button>
+  <button id="bRedo" title="⇧⌘Z">重做</button>
+  <span class="sep"></span>
+  <button data-add="input" title="加一个蓝色圆形节点">＋输入</button>
+  <button data-add="produce" title="加一个橙色方块节点">＋生产</button>
+  <button data-add="feedback" title="加一个绿色六边形节点">＋反馈</button>
+  <button id="bEdge" title="先点起点节点，再点终点节点">＋连线</button>
+  <button data-add="note">＋批注</button>
+  <button data-add="sticky">＋便利贴</button>
+  <button data-add="list">＋清单</button>
+  <button id="bDup" title="⌘D">复制</button>
+  <button id="bDel" title="Delete">删除</button>
+  <span class="sep"></span>
+  <select id="ratio" title="画布比例"><option value="1600x900">16:9 横版</option><option value="1200x1600">3:4 竖版</option></select>
+  <button id="bPng" class="primary" title="2 倍大小，存到「下载」文件夹">导出 PNG</button>
+  <button id="bSvg">导出 SVG</button>
+  <button id="bJson" title="显示或收起整份 JSON">显示 JSON</button>
+</header>
+<div id="main" class="fold">
+  <aside id="left">
+    <div class="ph">整份 JSON <span class="grow"></span><button id="bCopy" title="复制给 Agent 或存档">复制</button></div>
+    <textarea id="src" spellcheck="false"></textarea>
+    <div id="jsonErr" class="err"></div>
+  </aside>
+  <section id="center">
+    <div id="stage"></div>
+    <div id="status"></div>
+    <div id="err" class="err"></div>
+  </section>
+  <aside id="right">
+    <div>
+      <h3>选中的元素</h3>
+      <div id="selName" class="hint">点图上的元素选中它；拖动可以移动（自动对齐到 5 像素，按住 Shift 自由移动）。</div>
+      <textarea id="selJson" spellcheck="false" placeholder="选中元素后，这里只显示它的字段，改完自动生效"></textarea>
+      <div id="selErr" class="err"></div>
+    </div>
+    <div>
+      <h3>排版提醒 <span id="warnCount"></span></h3>
+      <ul id="warnList"></ul>
+    </div>
+    <div>
+      <h3>图标 <span class="hint">（点一下：换掉选中节点的图标）</span></h3>
+      <div id="icons" class="gallery"></div>
+    </div>
+    <div>
+      <h3>小涂鸦 <span class="hint">（点一下：加到画面中间）</span></h3>
+      <div id="doodles" class="gallery"></div>
+    </div>
+    <div>
+      <h3>快捷键</h3>
+      <ul class="keys hint">
+        <li>⌘S 保存，⌘Z 撤销，⇧⌘Z 重做</li>
+        <li>方向键 移动 1 像素，Shift + 方向键 移动 10 像素</li>
+        <li>Delete 删除，⌘D 复制，Esc 取消选中</li>
+        <li>双击节点、批注：直接改文字</li>
+      </ul>
+    </div>
+  </aside>
+</div>
+<div id="toast"></div>
+<script src="templates.js"></script>
+<script>
+"use strict";
+
+/* ---------- 风格常量（和配图风格规定一致） ---------- */
+const C = {
+  paper: "#FAF6EC", ink: "#2B2B2B", gray: "#4A4A4A",
+  blue: "#5BA3E6", blueL: "#DDEBFA", orange: "#F5A04A", orangeL: "#FDE7CF",
+  green: "#6CC27A", greenL: "#DDF2DA", yellow: "#FFE47A", pink: "#F8C8D3", mint: "#CDEFC4",
+  red: "#E5533D", wood: "#C98E55", woodL: "#EBC897", white: "#FFFFFF"
+};
+const TYPE = {
+  input:    { fill: C.blue,   light: C.blueL,   shape: "circle", word: "输入" },
+  produce:  { fill: C.orange, light: C.orangeL, shape: "square", word: "生产" },
+  feedback: { fill: C.green,  light: C.greenL,  shape: "hex",    word: "反馈" }
+};
+const HL = { yellow: C.yellow, pink: C.pink, mint: C.mint, blue: C.blueL, orange: C.orangeL, green: C.greenL, none: null };
+const NUM_COLORS = [C.blue, C.orange, C.green, C.red];
+const FONT = {
+  title: '"Hannotate SC","HanziPen SC","LXGW WenKai","PingFang SC",sans-serif',
+  label: '"Hannotate SC","HanziPen SC","PingFang SC",sans-serif',
+  hand:  '"HanziPen SC","Hannotate SC","LXGW WenKai","PingFang SC",sans-serif',
+  en:    '"Noteworthy","Chalkboard SE","Marker Felt",sans-serif',
+  enBold:'"Marker Felt","Chalkboard SE",sans-serif'
+};
+
+/* ---------- 随机数（固定种子，保证同一份 JSON 每次画得一样） ---------- */
+let rnd = Math.random;
+let BOXES = [];  /* 需要检查重叠的元素：[名字, g 元素, 所属节点, 在 JSON 里的位置] */
+function reg(name, g, owner, path) { BOXES.push([name, g, owner || name, path || null]); return g; }
+let SEED = 7;
+function hashStr(s) { let h = 2166136261; for (const ch of s) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+/* 每个元素用自己的随机种子：拖动一个元素时，别的元素的手抖样子不变 */
+function seedFor(key) { rnd = seedRng(hashStr(SEED + ":" + key)); }
+/* 给元素打上「在 JSON 里的位置」，编辑器靠它实现点选和拖动 */
+function tag(g, path) { if (path) g.setAttribute("data-path", path); return g; }
+function seedRng(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const J = a => (rnd() * 2 - 1) * a;
+
+/* ---------- SVG 基础 ---------- */
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const f1 = v => (Math.round(v * 10) / 10).toString();
+function smooth(pts, closed) {
+  const n = pts.length; if (n < 2) return "";
+  const g = i => closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))];
+  let d = `M${f1(pts[0][0])},${f1(pts[0][1])}`;
+  const last = closed ? n : n - 1;
+  for (let i = 0; i < last; i++) {
+    const p0 = g(i - 1), p1 = g(i), p2 = g(i + 1), p3 = g(i + 2);
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += `C${f1(c1[0])},${f1(c1[1])} ${f1(c2[0])},${f1(c2[1])} ${f1(p2[0])},${f1(p2[1])}`;
+  }
+  return closed ? d + "Z" : d;
+}
+function jit(pts, a) { return pts.map(p => [p[0] + J(a), p[1] + J(a)]); }
+
+/* ---------- 文字 ---------- */
+const mctx = document.createElement("canvas").getContext("2d");
+function tw(s, size, family, weight) { mctx.font = `${weight || 400} ${size}px ${family}`; return mctx.measureText(s).width; }
+function lines(s) { return String(s == null ? "" : s).split("\n"); }
+/* 在 (x, cy) 处画多行文字，cy 是整段文字的垂直中心 */
+function text(parent, x, cy, s, o) {
+  o = o || {};
+  const size = o.size || 28, lh = o.lh || size * 1.32, ls = lines(s);
+  const family = o.font || FONT.hand, weight = o.weight || 400;
+  const g = el("g", { transform: o.rotate ? `rotate(${o.rotate} ${f1(x)} ${f1(cy)})` : null }, parent);
+  const top = cy - (ls.length - 1) * lh / 2;
+  ls.forEach((ln, i) => {
+    const t = el("text", {
+      x: f1(x), y: f1(top + i * lh), "font-family": family, "font-size": size, "font-weight": weight,
+      fill: o.fill || C.ink, "text-anchor": o.anchor || "start", "dominant-baseline": "central",
+      "letter-spacing": o.spacing || null,
+      stroke: o.stroke || null, "stroke-width": o.sw || null, "paint-order": o.stroke ? "stroke" : null, "stroke-linejoin": "round"
+    }, g);
+    t.textContent = ln;
+  });
+  return g;
+}
+function blockW(s, size, family, weight) { return Math.max(...lines(s).map(l => tw(l, size, family, weight))); }
+
+/* ---------- 手绘形状 ---------- */
+function circlePts(cx, cy, r, amp, over) {
+  const N = 30, st = rnd() * Math.PI * 2, out = [];
+  const total = N + (over ? 3 : 0);
+  for (let i = 0; i < total; i++) { const a = st + i / N * Math.PI * 2; const rr = r + J(amp); out.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); }
+  return out;
+}
+function rrectPts(x, y, w, h, rad, amp) {
+  rad = Math.min(rad, w / 2, h / 2);
+  const pts = [], step = 55;
+  const edge = (x1, y1, x2, y2) => { const L = Math.hypot(x2 - x1, y2 - y1), n = Math.max(1, Math.round(L / step)); for (let i = 0; i < n; i++) pts.push([x1 + (x2 - x1) * i / n + J(amp), y1 + (y2 - y1) * i / n + J(amp)]); };
+  const corner = (cx, cy, a0) => { for (let i = 0; i <= 3; i++) { const a = a0 + i / 3 * Math.PI / 2; pts.push([cx + Math.cos(a) * rad + J(amp * .6), cy + Math.sin(a) * rad + J(amp * .6)]); } };
+  edge(x + rad, y, x + w - rad, y); corner(x + w - rad, y + rad, -Math.PI / 2);
+  edge(x + w, y + rad, x + w, y + h - rad); corner(x + w - rad, y + h - rad, 0);
+  edge(x + w - rad, y + h, x + rad, y + h); corner(x + rad, y + h - rad, Math.PI / 2);
+  edge(x, y + h - rad, x, y + rad); corner(x + rad, y + rad, Math.PI);
+  return pts;
+}
+function hexPts(cx, cy, rx, ry, amp) {
+  const v = []; for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; v.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); }
+  const pts = [];
+  for (let k = 0; k < 6; k++) {
+    const a = v[k], b = v[(k + 1) % 6];
+    const p = t => [a[0] + (b[0] - a[0]) * t + J(amp), a[1] + (b[1] - a[1]) * t + J(amp)];
+    pts.push(p(0.12), p(0.5), p(0.88));
+  }
+  return pts;
+}
+/* 先填色（略微错位，像手涂），再画一圈手抖的黑线 */
+function sketchShape(parent, kind, geo, o) {
+  o = o || {};
+  const g = el("g", {}, parent);
+  const make = (amp, over) => kind === "circle" ? circlePts(geo.cx, geo.cy, geo.r, amp, over)
+    : kind === "hex" ? hexPts(geo.cx, geo.cy, geo.rx, geo.ry, amp)
+    : rrectPts(geo.x, geo.y, geo.w, geo.h, geo.rad == null ? 22 : geo.rad, amp);
+  if (o.fill) {
+    const dx = J(3), dy = J(3);
+    const fp = make(o.fillAmp == null ? 1.5 : o.fillAmp, false).map(p => [p[0] + dx, p[1] + dy]);
+    el("path", { d: smooth(fp, true), fill: o.fill, opacity: o.fillOpacity == null ? 1 : o.fillOpacity }, g);
+  }
+  if (o.stroke !== false) {
+    let op = make(o.amp == null ? 1.6 : o.amp, kind === "circle");
+    let d;
+    if (kind === "circle") d = smooth(op, false);
+    else { op = op.concat([[op[0][0] + J(3), op[0][1] + J(3)], [op[1][0] + J(4), op[1][1] + J(4)]]); d = smooth(op, false); }
+    el("path", { d, fill: "none", stroke: o.color || C.ink, "stroke-width": o.width || 5, "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-dasharray": o.dash || null }, g);
+  }
+  return g;
+}
+function wobblyLine(parent, pts, o) {
+  o = o || {};
+  const d = smooth(jit(pts, o.amp == null ? 1.2 : o.amp), false);
+  return el("path", { d, fill: "none", stroke: o.color || C.ink, "stroke-width": o.width || 4, "stroke-linecap": "round", "stroke-linejoin": "round", "stroke-dasharray": o.dash || null, opacity: o.opacity || null }, parent);
+}
+function qbez(p0, c, p1, t) { const u = 1 - t; return [u * u * p0[0] + 2 * u * t * c[0] + t * t * p1[0], u * u * p0[1] + 2 * u * t * c[1] + t * t * p1[1]]; }
+function arrowHead(parent, tip, ang, size, color) {
+  const L = size, W = size * 0.5;
+  const b = [tip[0] - Math.cos(ang) * L, tip[1] - Math.sin(ang) * L];
+  const p1 = [b[0] - Math.sin(ang) * W, b[1] + Math.cos(ang) * W], p2 = [b[0] + Math.sin(ang) * W, b[1] - Math.cos(ang) * W];
+  el("path", { d: `M${f1(tip[0])},${f1(tip[1])}L${f1(p1[0] + J(1))},${f1(p1[1] + J(1))}L${f1(p2[0] + J(1))},${f1(p2[1] + J(1))}Z`, fill: color || C.ink, stroke: color || C.ink, "stroke-width": 3, "stroke-linejoin": "round" }, parent);
+}
+/* 荧光笔高亮：边缘不齐的一条色带 */
+function highlight(parent, x, y, w, h, color, rot) {
+  /* 用直线连接（不用平滑曲线，避免长边两端鼓出去），描一圈同色粗边让角变圆 */
+  const n = Math.max(2, Math.round(w / 120)), top = [], bot = [];
+  for (let i = 0; i <= n; i++) { top.push([x + w * i / n + J(2), y + J(3)]); bot.push([x + w * (n - i) / n + J(2), y + h + J(3)]); }
+  const pts = top.concat(bot);
+  el("path", { d: "M" + pts.map(q => f1(q[0]) + "," + f1(q[1])).join("L") + "Z", fill: color, stroke: color, "stroke-width": Math.min(10, h * 0.3), "stroke-linejoin": "round", opacity: 0.92, transform: rot ? `rotate(${rot} ${f1(x + w / 2)} ${f1(y + h / 2)})` : null }, parent);
+}
+function pill(parent, cx, cy, s, o) {
+  o = o || {};
+  const size = o.size || 22, family = o.font || FONT.hand, weight = o.weight || 400;
+  const lh = size * 1.3, n = lines(s).length;
+  const w = blockW(s, size, family, weight) + (o.padX || 22) * 2, h = n * lh + (o.padY || 9) * 2;
+  const g = el("g", { transform: o.rotate ? `rotate(${o.rotate} ${f1(cx)} ${f1(cy)})` : null }, parent);
+  sketchShape(g, "rect", { x: cx - w / 2, y: cy - h / 2, w, h, rad: Math.min(18, h / 2) }, { fill: o.bg || C.blueL, stroke: o.border ? undefined : false, width: 2.5, amp: 1 });
+  text(g, cx, cy, s, { size, font: family, weight, anchor: "middle", fill: o.color || C.ink, lh });
+  return { w, h };
+}
+
+/* ---------- 图标（白色线条，24×24 网格） ---------- */
+const ICONS = {
+  bulb: "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.5 1 2.5h6c0-1 .2-1.7 1-2.5A6 6 0 0 0 12 3z",
+  doc: "M6 3h9l3 3v15H6zM15 3v3h3M9 10h6M9 14h6M9 18h4",
+  target: "M12 3a9 9 0 1 0 .01 0M12 7a5 5 0 1 0 .01 0M12 11a1 1 0 1 0 .01 0M13.5 10.5L20 4M17 4h3v3",
+  pen: "M4 20h4l11-11-4-4L4 16zM14 6l4 4M13 20h7",
+  image: "M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M15.5 8.5a1.2 1.2 0 1 0 .01 0",
+  plane: "M3 11l18-8-7 18-3-7zM11 14l10-11",
+  chart: "M4 20h16M7 20v-6M12 20V10M17 20V5",
+  layers: "M12 3l9 5-9 5-9-5zM3 13l9 5 9-5M3 17.5l9 5 9-5",
+  check: "M4 12.5l5 5L20 6",
+  checklist: "M10 6h10M10 12h10M10 18h10M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5",
+  chat: "M4 5h16v11H10l-5 4v-4H4z",
+  search: "M10 4a6 6 0 1 0 .01 0M14.5 14.5L20 20",
+  loop: "M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M20 12a8 8 0 0 1-14 5.3M6 21v-4h4",
+  eye: "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 .01 0",
+  palette: "M12 3a9 9 0 0 0 0 18c1.5 0 2-1 2-2s-1-1.4-1-2.4S14 15 15 15h2a4 4 0 0 0 4-4c0-4.4-4-8-9-8zM7.5 11.5a1 1 0 1 0 .01 0M10 7.5a1 1 0 1 0 .01 0M15 7.5a1 1 0 1 0 .01 0",
+  list: "M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1",
+  book: "M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4zM20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z",
+  user: "M12 4a4 4 0 1 0 .01 0M4 21c0-4 4-7 8-7s8 3 8 7",
+  flag: "M5 21V4M5 4h12l-2 4 2 4H5",
+  braces: "M8 4c-2 0-3 1-3 3v2c0 1-1 2-2 3 1 1 2 2 2 3v2c0 2 1 3 3 3M16 4c2 0 3 1 3 3v2c0 1 1 2 2 3-1 1-2 2-2 3v2c0 2-1 3-3 3",
+  camera: "M4 8h4l2-3h4l2 3h4v11H4zM12 10a3.5 3.5 0 1 0 .01 0",
+  wand: "M4 20L15 9M14 4v3M19 9h-3M17.5 5.5l-2 2M11 4.5l.5 1.5M18.5 12l1.5.5",
+  hand: "M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11V4.5a1.5 1.5 0 0 1 3 0V12M14 11.5V6a1.5 1.5 0 0 1 3 0v7c0 4-2.5 7-6 7-2.5 0-4-1.5-5.5-4L4 13a1.5 1.5 0 0 1 2.5-1.5L8 13",
+  brush: "M18 3l3 3-9 9-3-3zM9 12c-3 0-4 2-4 4s-1 3-3 3c2 2 6 2 8-1 1-1.5 1-3 2-3",
+  star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z",
+  key: "M8 14a4 4 0 1 1 .01 0M11 11l9-9M17 5l2 2M15 7l2 2"
+};
+function icon(parent, name, cx, cy, size, color, width) {
+  if (!ICONS[name]) return;
+  const s = size / 24;
+  const g = el("g", { transform: `translate(${f1(cx - size / 2)} ${f1(cy - size / 2)}) scale(${s.toFixed(4)})` }, parent);
+  el("path", { d: ICONS[name], fill: "none", stroke: color || C.white, "stroke-width": (width || 2.2), "stroke-linecap": "round", "stroke-linejoin": "round" }, g);
+}
+
+/* ---------- 小涂鸦 ---------- */
+const DOODLE = {
+  bulb(p, x, y, s) {
+    const g = el("g", {}, p);
+    sketchShape(g, "circle", { cx: x, cy: y, r: 22 * s }, { fill: C.yellow, width: 3.5 });
+    wobblyLine(g, [[x - 9 * s, y + 26 * s], [x + 9 * s, y + 26 * s]], { width: 3.5 });
+    wobblyLine(g, [[x - 6 * s, y + 34 * s], [x + 6 * s, y + 34 * s]], { width: 3.5 });
+    for (let k = 0; k < 5; k++) { const a = -Math.PI * (0.15 + k * 0.175); wobblyLine(g, [[x + Math.cos(a) * 32 * s, y + Math.sin(a) * 32 * s], [x + Math.cos(a) * 44 * s, y + Math.sin(a) * 44 * s]], { width: 3.5 }); }
+  },
+  sparkle(p, x, y, s) { const g = el("g", {}, p); [[-0.9, -0.2], [-0.2, -0.95], [0.6, -0.6]].forEach(v => wobblyLine(g, [[x + v[0] * 14 * s, y + v[1] * 14 * s], [x + v[0] * 30 * s, y + v[1] * 30 * s]], { width: 3.5 })); },
+  star(p, x, y, s) { icon(p, "star", x, y, 34 * s, C.ink, 2); },
+  exclaim(p, x, y, s) { const g = el("g", {}, p); [0, 16].forEach(dx => { wobblyLine(g, [[x + dx * s, y - 16 * s], [x + (dx - 3) * s, y + 6 * s]], { width: 4 }); el("circle", { cx: f1(x + (dx - 4) * s), cy: f1(y + 15 * s), r: 2.8 * s, fill: C.ink }, g); }); },
+  pin(p, x, y, s) { const g = el("g", { transform: `rotate(25 ${x} ${y})` }, p); wobblyLine(g, [[x, y + 10 * s], [x, y + 34 * s]], { width: 3 }); sketchShape(g, "circle", { cx: x, cy: y, r: 13 * s }, { fill: C.red, width: 3 }); el("circle", { cx: f1(x - 4 * s), cy: f1(y - 4 * s), r: 3.5 * s, fill: "#fff", opacity: .8 }, g); },
+  grass(p, x, y, s) { const g = el("g", {}, p); for (let k = 0; k < 5; k++) { const bx = x + (k - 2) * 10 * s; wobblyLine(g, [[bx, y], [bx + J(5) * s, y - (16 + rnd() * 12) * s]], { width: 3, color: "#4E9A5B" }); } },
+  megaphone(p, x, y, s) { const g = el("g", {}, p); const pts = [[x - 22 * s, y - 8 * s], [x + 14 * s, y - 24 * s], [x + 14 * s, y + 24 * s], [x - 22 * s, y + 8 * s]]; el("path", { d: smooth(jit(pts, 1), true), fill: C.orange, stroke: C.ink, "stroke-width": 3.5, "stroke-linejoin": "round" }, g); wobblyLine(g, [[x - 14 * s, y + 8 * s], [x - 10 * s, y + 24 * s]], { width: 3.5 }); [-14, 0, 14].forEach(dy => wobblyLine(g, [[x + 22 * s, y + dy * s * 1.2], [x + 34 * s, y + dy * s * 1.6]], { width: 3 })); },
+  link(p, x, y, s) { const g = el("g", { transform: `rotate(-35 ${x} ${y})` }, p); sketchShape(g, "rect", { x: x - 26 * s, y: y - 9 * s, w: 30 * s, h: 18 * s, rad: 9 * s }, { width: 3.5 }); sketchShape(g, "rect", { x: x - 4 * s, y: y - 9 * s, w: 30 * s, h: 18 * s, rad: 9 * s }, { width: 3.5 }); },
+  warn(p, x, y, s) { const pts = [[x, y - 18 * s], [x + 20 * s, y + 15 * s], [x - 20 * s, y + 15 * s]]; el("path", { d: `M${pts.map(q => f1(q[0]) + "," + f1(q[1])).join("L")}Z`, fill: C.red, stroke: C.ink, "stroke-width": 3, "stroke-linejoin": "round" }, p); text(p, x, y + 3 * s, "!", { size: 22 * s, fill: "#fff", anchor: "middle", weight: 700, font: FONT.enBold }); },
+  arrow(p, x, y, s, o) { const a = (o && o.angle != null ? o.angle : 0) * Math.PI / 180; const L = 40 * s; const e = [x + Math.cos(a) * L, y + Math.sin(a) * L]; const c = [x + Math.cos(a) * L / 2 - Math.sin(a) * 10 * s, y + Math.sin(a) * L / 2 + Math.cos(a) * 10 * s]; const pts = []; for (let t = 0; t <= 1.001; t += 0.25) pts.push(qbez([x, y], c, e, t)); wobblyLine(p, pts, { width: 3 }); arrowHead(p, e, Math.atan2(e[1] - c[1], e[0] - c[0]), 13 * s); },
+  heart(p, x, y, s) { el("path", { d: `M${x},${y + 14 * s}C${x - 30 * s},${y - 6 * s} ${x - 12 * s},${y - 24 * s} ${x},${y - 8 * s}C${x + 12 * s},${y - 24 * s} ${x + 30 * s},${y - 6 * s} ${x},${y + 14 * s}Z`, fill: C.pink, stroke: C.ink, "stroke-width": 3 }, p); }
+};
+
+/* ---------- 节点 ---------- */
+function nodeGeo(n) {
+  const t = TYPE[n.type] || TYPE.produce, s = n.size || 150;
+  if (t.shape === "circle") return { kind: "circle", cx: n.x, cy: n.y, r: s / 2 };
+  if (t.shape === "hex") { const w = n.w || s * 1.08; return { kind: "hex", cx: n.x, cy: n.y, rx: w / 2, ry: s / 2 }; }
+  const w = n.w || s; return { kind: "rect", x: n.x - w / 2, y: n.y - s / 2, w, h: s, rad: s * 0.17 };
+}
+/* 从节点中心沿 (dx,dy) 方向到边界的距离 */
+function boundary(n, dx, dy) {
+  const geo = nodeGeo(n), L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+  if (geo.kind === "circle") return geo.r;
+  if (geo.kind === "hex") return Math.min(geo.rx / Math.max(Math.abs(ux), 1e-6), geo.ry * 0.95 / Math.max(Math.abs(uy), 1e-6), Math.max(geo.rx, geo.ry));
+  return Math.min(geo.w / 2 / Math.max(Math.abs(ux), 1e-6), geo.h / 2 / Math.max(Math.abs(uy), 1e-6));
+}
+function drawNode(p, n, i) {
+  const path = "nodes." + i; seedFor(path);
+  const t = TYPE[n.type] || TYPE.produce, s = n.size || 150, geo = nodeGeo(n);
+  const g = reg("节点「" + (n.label || n.id) + "」", tag(el("g", {}, p), path), n.id, path);
+  sketchShape(g, geo.kind, geo, { fill: n.color || t.fill, width: 5.5 });
+  const hasLabel = !!n.label;
+  const iconY = hasLabel ? n.y - s * 0.13 : n.y;
+  if (n.icon) icon(g, n.icon, n.x, iconY, s * (hasLabel ? 0.36 : 0.5), C.white, 2.1);
+  if (hasLabel) {
+    const inner = geo.kind === "rect" ? geo.w * 0.86 : geo.kind === "hex" ? geo.rx * 1.08 : s * 0.78;  /* 文字可用宽度 */
+    const units = [...n.label].reduce((u, ch) => u + (/[\x00-\xff]/.test(ch) ? 0.55 : 1), 0);  /* 英文、数字按半个字宽算 */
+    const lsize = n.labelSize || Math.min(s * 0.18, inner / Math.max(1, units));
+    text(g, n.x, n.y + s * (n.icon ? 0.24 : 0), n.label, { size: lsize, font: FONT.label, weight: 700, fill: C.white, anchor: "middle", stroke: n.color || t.fill, sw: 1 });
+  }
+  if (n.note) {
+    const pos = n.notePos || "below", nsize = n.noteSize || 21;
+    const nl = lines(n.note).length, nh = nl * nsize * 1.3 + 18;
+    const half = geo.kind === "rect" ? geo.h / 2 : geo.kind === "hex" ? geo.ry : geo.r;
+    const halfW = geo.kind === "rect" ? geo.w / 2 : geo.kind === "hex" ? geo.rx : geo.r;
+    const nw = blockW(n.note, nsize, FONT.hand) + 44;
+    let cx = n.x, cy = n.y + half + 16 + nh / 2;
+    if (pos === "above") cy = n.y - half - 16 - nh / 2;
+    if (pos === "left") { cx = n.x - halfW - 16 - nw / 2; cy = n.y; }
+    if (pos === "right") { cx = n.x + halfW + 16 + nw / 2; cy = n.y; }
+    if (n.noteDx) cx += n.noteDx; if (n.noteDy) cy += n.noteDy;
+    const pg = tag(el("g", {}, p), path + ".note");
+    pill(pg, cx, cy, n.note, { size: nsize, bg: t.light, rotate: n.noteRotate || J(1.2) });
+    reg("「" + (n.label || n.id) + "」的说明", pg, n.id, path + ".note");
+  }
+}
+
+/* ---------- 连线 ---------- */
+function drawEdge(p, e, nodes, i) {
+  const path = "edges." + i; seedFor(path);
+  const A = nodes[e.from], B = nodes[e.to];
+  if (!A || !B) throw new Error(`连线找不到节点：${e.from} → ${e.to}`);
+  const dx = B.x - A.x, dy = B.y - A.y, dist = Math.hypot(dx, dy);
+  const mid = [(A.x + B.x) / 2, (A.y + B.y) / 2];
+  const bend = e.bend == null ? 0.12 : e.bend;
+  let c = e.ctrl ? e.ctrl.slice() : [mid[0] - dy / dist * bend * dist, mid[1] + dx / dist * bend * dist];
+  const gap = e.gap == null ? 12 : e.gap;
+  const sA = [c[0] - A.x, c[1] - A.y], sB = [c[0] - B.x, c[1] - B.y];
+  const rA = boundary(A, sA[0], sA[1]) + gap, rB = boundary(B, sB[0], sB[1]) + gap + 4;
+  const lA = Math.hypot(sA[0], sA[1]) || 1, lB = Math.hypot(sB[0], sB[1]) || 1;
+  const P0 = [A.x + sA[0] / lA * rA, A.y + sA[1] / lA * rA], P1 = [B.x + sB[0] / lB * rB, B.y + sB[1] / lB * rB];
+  if (!e.ctrl) c = [(P0[0] + P1[0]) / 2 - (P1[1] - P0[1]) * bend, (P0[1] + P1[1]) / 2 + (P1[0] - P0[0]) * bend];
+  const n = Math.max(4, Math.round(Math.hypot(P1[0] - P0[0], P1[1] - P0[1]) / 30));
+  const pts = []; for (let i = 0; i <= n; i++) pts.push(qbez(P0, c, P1, i / n));
+  const g = tag(el("g", {}, p), path);
+  el("path", { d: `M${f1(P0[0])},${f1(P0[1])}Q${f1(c[0])},${f1(c[1])} ${f1(P1[0])},${f1(P1[1])}`, fill: "none", stroke: "transparent", "stroke-width": 22, class: "hit" }, g);  /* 加宽的透明线，方便在编辑器里点中 */
+  wobblyLine(g, pts, { width: e.width || 4.5, dash: e.dash ? "12 10" : null, color: e.color });
+  if (e.arrow !== false) arrowHead(g, P1, Math.atan2(P1[1] - c[1], P1[0] - c[0]), e.head || 20, e.color);
+  if (e.both) arrowHead(g, P0, Math.atan2(P0[1] - c[1], P0[0] - c[0]), e.head || 20, e.color);
+  if (e.label) {
+    const m = qbez(P0, c, P1, e.labelAt == null ? 0.5 : e.labelAt);
+    const lg = tag(el("g", {}, g), path + ".label");
+    pill(lg, m[0] + (e.labelDx || 0), m[1] + (e.labelDy || 0), e.label, { size: e.labelSize || 22, bg: HL[e.labelColor || "mint"] || C.mint, rotate: e.labelRotate == null ? -4 : e.labelRotate, weight: 700 });
+    reg("连线标签「" + lines(e.label)[0] + "」", lg, null, path + ".label");
+  }
+}
+
+/* ---------- 版块 ---------- */
+function dashedBox(p, b, o) {
+  return sketchShape(p, "rect", { x: b.x, y: b.y, w: b.w, h: b.h, rad: 26 }, { fill: (o && o.fill) || null, fillOpacity: .55, width: 3, dash: "15 11", amp: 1.2 });
+}
+function blockTitle(p, b, iconName, size) {
+  size = size || 38;
+  const tx = b.x + (iconName ? 92 : 30), ty = b.y + 44;
+  size = Math.min(size, size * (b.x + b.w - tx - 24) / Math.max(1, tw(b.title, size, FONT.title, 700)));  /* 标题太长就缩小，不出框 */
+  const w = tw(b.title, size, FONT.title, 700);
+  highlight(p, tx - 8, ty - size * 0.05, w + 16, size * 0.55, HL[b.titleColor || "pink"] || C.pink, -1);
+  text(p, tx, ty, b.title, { size, font: FONT.title, weight: 700, stroke: C.ink, sw: 0.8 });
+  if (iconName && DOODLE[iconName]) DOODLE[iconName](p, b.x + 50, b.y + 46, 0.95);
+}
+const BLOCK = {
+  list(p, b) {
+    b = Object.assign({}, b, { h: Math.max(b.h || 0, 108 + ((b.items || []).length - 1) * (b.rowH || 58) + 38) });  /* 装不下就自动加高 */
+    if (b.border !== false) dashedBox(p, b);
+    blockTitle(p, b, b.icon || "megaphone");
+    const size = b.size || 27, top = b.y + 108, rowH = b.rowH || 58;
+    (b.items || []).forEach((it, i) => {
+      const y = top + i * rowH;
+      sketchShape(p, "circle", { cx: b.x + 52, cy: y, r: 19 }, { fill: NUM_COLORS[i % NUM_COLORS.length], width: 3 });
+      text(p, b.x + 52, y + 1, String(i + 1), { size: 24, fill: "#fff", anchor: "middle", weight: 700, font: FONT.enBold });
+      text(p, b.x + 88, y, it, { size, font: FONT.hand, weight: 700 });
+      if (i < b.items.length - 1 && b.lines !== false) wobblyLine(p, [[b.x + 84, y + rowH / 2], [b.x + b.w - 30, y + rowH / 2]], { width: 1.5, color: "#B9B3A6", amp: 0.8 });
+    });
+  },
+  loop(p, b) {
+    dashedBox(p, b, { fill: "#FFF8E0" });
+    blockTitle(p, b, b.icon || "link", 36);
+    const avail = b.w - 90;  /* 流程和说明都缩到框内 */
+    const size = Math.min(b.size || 29, (b.size || 29) * avail / Math.max(1, tw(b.flow, b.size || 29, FONT.hand, 700)));
+    const dsz0 = b.descSize || 21, dsize = b.desc ? Math.min(dsz0, dsz0 * avail / Math.max(1, tw(b.desc, dsz0, FONT.hand))) : 0;
+    const fy = b.desc ? b.y + 74 + (b.h - 74 - 34) / 2 : b.y + 74 + (b.h - 74) / 2;
+    highlight(p, b.x + 32, fy - size * 0.6, tw(b.flow, size, FONT.hand, 700) + 26, size * 1.2, C.yellow, -0.6);
+    text(p, b.x + 45, fy, b.flow, { size, font: FONT.hand, weight: 700 });
+    if (b.desc) text(p, b.x + 45, b.y + b.h - 26, b.desc, { size: dsize, font: FONT.hand, fill: C.gray });
+  },
+  sign(p, b) {
+    const bhh = b.boardH || (lines(b.text).length * (b.size || 23) * 1.35 + 34);
+    const w = b.w || 320, bx = b.x, by = b.y, postX = bx + w / 2, h = Math.max(b.h || 0, 102 + bhh + 30);  /* 高度按文字行数自动算 */
+    sketchShape(p, "rect", { x: postX - 13, y: by + 30, w: 26, h: h - 20, rad: 4 }, { fill: C.wood, width: 3.5 });
+    sketchShape(p, "rect", { x: bx, y: by, w, h: 78, rad: 10 }, { fill: C.woodL, width: 4 });
+    for (let k = 0; k < 2; k++) wobblyLine(p, [[bx + 18, by + 26 + k * 28], [bx + w - 18, by + 26 + k * 28]], { width: 1.5, color: "#B07A45", amp: 1 });
+    DOODLE.warn(p, bx + 46, by + 38, 1);
+    text(p, bx + 82, by + 40, b.title || "边界说明", { size: 36, font: FONT.title, weight: 700, stroke: C.ink, sw: 0.8 });
+    const boardY = by + 102, bh = bhh;
+    wobblyLine(p, [[bx + 46, by + 78], [bx + 46, boardY]], { width: 2.5 });
+    wobblyLine(p, [[bx + w - 46, by + 78], [bx + w - 46, boardY]], { width: 2.5 });
+    sketchShape(p, "rect", { x: bx + 20, y: boardY, w: w - 40, h: bh, rad: 8 }, { fill: "#FFFFFF", width: 3.5 });
+    text(p, bx + w / 2, boardY + bh / 2, b.text, { size: b.size || 23, font: FONT.hand, anchor: "middle", weight: 700, lh: (b.size || 23) * 1.35 });
+    DOODLE.grass(p, postX - 34, by + h, 1); DOODLE.grass(p, postX + 34, by + h, 0.9);
+  },
+  sticky(p, b) {
+    const g = el("g", { transform: `rotate(${b.rotate == null ? 4 : b.rotate} ${b.x + b.w / 2} ${b.y + b.h / 2})` }, p);
+    sketchShape(g, "rect", { x: b.x, y: b.y, w: b.w, h: b.h, rad: 6 }, { fill: b.color ? (HL[b.color] || b.color) : "#FFE98F", width: 2.5 });
+    highlight(g, b.x + b.w / 2 - 34, b.y - 12, 68, 24, "#E8E1D0", 0);
+    text(g, b.x + b.w / 2, b.y + b.h / 2, b.text, { size: b.size || 24, font: FONT.hand, anchor: "middle", weight: 700 });
+  },
+  legend(p, b) {
+    const nItems = (b.items || [1, 2, 3]).length, rh = b.rowH || 70;
+    b = Object.assign({}, b, { h: Math.max(b.h || 0, 105 + (nItems + (b.arrowText ? 1 : 0) - 1) * rh + (b.arrowDesc ? 50 : 36)) });  /* 高度按行数自动算 */
+    dashedBox(p, b, { fill: "#FFFFFF" });
+    text(p, b.x + 30, b.y + 42, b.title || "节点图例", { size: 32, font: FONT.title, weight: 700, stroke: C.ink, sw: 0.6 });
+    DOODLE.pin(p, b.x + b.w - 28, b.y - 4, 1.1);
+    const items = b.items || ["input", "produce", "feedback"].map(k => ({ type: k, text: (k === "input" ? "蓝" : k === "produce" ? "橙" : "绿") + "=" + TYPE[k].word }));
+    const rowH = b.rowH || 70;
+    items.forEach((it, i) => {
+      const y = b.y + 105 + i * rowH, t = TYPE[it.type] || TYPE.produce, sx = b.x + 46;
+      const geo = t.shape === "circle" ? { kind: "circle", cx: sx, cy: y, r: 19 } : t.shape === "hex" ? { kind: "hex", cx: sx, cy: y, rx: 21, ry: 19 } : { kind: "rect", x: sx - 19, y: y - 19, w: 38, h: 38, rad: 8 };
+      sketchShape(p, geo.kind, geo, { fill: t.fill, width: 3.5 });
+      text(p, b.x + 80, y, it.text, { size: 25, font: FONT.hand, weight: 700 });
+      if (it.desc) { const pw = blockW(it.desc, 18, FONT.hand) + 30, tx = b.x + 80 + tw(it.text, 25, FONT.hand, 700) + 14; pill(p, tx + pw / 2, y, it.desc, { size: 18, bg: t.light, padX: 15, padY: 5 }); }
+    });
+    if (b.arrowText) {
+      const y = b.y + 105 + items.length * rowH;
+      wobblyLine(p, [[b.x + 26, y], [b.x + 70, y]], { width: 4 }); arrowHead(p, [b.x + 76, y], 0, 16);
+      text(p, b.x + 90, y - (b.arrowDesc ? 12 : 0), b.arrowText, { size: 22, font: FONT.hand, weight: 700 });
+      if (b.arrowDesc) text(p, b.x + 90, y + 18, b.arrowDesc, { size: 17, font: FONT.hand, fill: C.gray });
+    }
+  },
+  box(p, b) {
+    if (b.border !== false) dashedBox(p, b, { fill: b.fill ? (HL[b.fill] || b.fill) : null });
+    if (b.title) blockTitle(p, b, b.icon, b.titleSize);
+    if (b.text) text(p, b.x + (b.textX || 34), b.y + (b.textY || 120), b.text, { size: b.size || 25, font: FONT.hand, weight: b.weight || 400, lh: (b.size || 25) * 1.45 });
+  }
+};
+
+/* ---------- 总渲染 ---------- */
+function render(spec) {
+  const cv = spec.canvas || {}, W = cv.width || 1600, H = cv.height || 900;  /* 默认 16:9 */
+  SEED = cv.seed == null ? 7 : cv.seed; seedFor("canvas");
+  BOXES = [];
+  const svg = el("svg", { xmlns: NS, viewBox: `0 0 ${W} ${H}`, width: W, height: H });
+  const defs = el("defs", {}, svg);
+  const flt = el("filter", { id: "grain", x: 0, y: 0, width: "100%", height: "100%" }, defs);
+  el("feTurbulence", { type: "fractalNoise", baseFrequency: 0.85, numOctaves: 2, seed: 5, result: "n" }, flt);
+  el("feColorMatrix", { type: "matrix", values: "0 0 0 0 0.35  0 0 0 0 0.3  0 0 0 0 0.22  0 0 0 0.09 0" }, flt);
+  el("rect", { x: 0, y: 0, width: W, height: H, fill: cv.paper || C.paper }, svg);
+  el("rect", { x: 0, y: 0, width: W, height: H, filter: "url(#grain)" }, svg);
+  const layer = el("g", {}, svg);
+
+  /* 标题 */
+  if (spec.title) {
+    seedFor("title"); const tg = tag(el("g", {}, layer), "title");
+    const t = spec.title, size = t.size || 86, lh = t.lh || size * 1.18, x = t.x == null ? 60 : t.x, y0 = t.y == null ? 95 : t.y;
+    const maxW = t.maxWidth || (W - x - 40);
+    (t.lines || []).forEach((ln, i) => {
+      const y = y0 + i * lh;
+      const fs = Math.min(size, size * maxW / Math.max(1, tw(ln, size, FONT.title, 700)));  /* 太长就自动缩小 */
+      const hit = t.mark ? ln.includes(t.mark) : (t.highlight || [0]).includes(i);  /* mark：只高亮这一行里的某几个字 */
+      if (hit) {
+        let hx = x - 12, hw = tw(ln, fs, FONT.title, 700) * (t.hlPart || 1) + 24;
+        if (t.mark) { hx = x + tw(ln.slice(0, ln.indexOf(t.mark)), fs, FONT.title, 700) - 10; hw = tw(t.mark, fs, FONT.title, 700) + 20; }
+        highlight(tg, hx, y - fs * 0.02, hw, fs * 0.5, HL[t.highlightColor || "yellow"], -0.8);
+      }
+      reg("标题第" + (i + 1) + "行", text(tg, x, y, ln, { size: fs, font: FONT.title, weight: 700, stroke: C.ink, sw: t.sw == null ? 2.2 : t.sw }), "标题", "title");
+    });
+  }
+  if (spec.subtitle) {
+    const s = spec.subtitle, size = s.size || 34, w = tw(s.text, size, FONT.en, 400) + s.text.length * 4;
+    const x = s.x == null ? W / 2 : s.x, y = s.y || 260;
+    seedFor("subtitle"); const sgp = tag(el("g", {}, layer), "subtitle");
+    highlight(sgp, x - w / 2 - 26, y - size * 0.55, w + 52, size * 1.1, HL[s.band || "pink"], -0.5);
+    reg("英文副标题", text(sgp, x, y, s.text, { size, font: FONT.en, anchor: "middle", spacing: 4, fill: C.ink }), null, "subtitle");
+  }
+  /* 版块和便签先画，节点和连线压在上面 */
+  (spec.blocks || []).forEach((b, i) => { if (!BLOCK[b.kind]) throw new Error(`没有这种版块：${b.kind}`); seedFor("blocks." + i); const bg = tag(el("g", {}, layer), "blocks." + i); BLOCK[b.kind](bg, b);
+    if (!(b.kind === "box" && !b.text)) reg("版块「" + (b.title || b.text || b.kind).split("\n")[0] + "」", bg, null, "blocks." + i); });  /* 没有正文的 box 是装节点的容器，不查重叠 */
+  if (spec.legend) { seedFor("legend"); const lg = tag(el("g", {}, layer), "legend"); BLOCK.legend(lg, spec.legend); reg("节点图例", lg, null, "legend"); }
+  const nodes = {}; (spec.nodes || []).forEach(n => { nodes[n.id] = n; });
+  (spec.edges || []).forEach((e, i) => drawEdge(layer, e, nodes, i));
+  (spec.nodes || []).forEach((n, i) => drawNode(layer, n, i));
+  /* 批注 */
+  (spec.notes || []).forEach((n, i) => {
+    const size = n.size || 25; seedFor("notes." + i); const ng = tag(el("g", {}, layer), "notes." + i);
+    if (n.highlight) { const w = blockW(n.text, size, FONT.hand, 700), h = lines(n.text).length * size * 1.32; const hx = n.anchor === "middle" ? n.x - w / 2 : n.anchor === "end" ? n.x - w : n.x; highlight(ng, hx - 12, n.y - h / 2 - size * 0.1, w + 24, h + size * 0.2, HL[n.highlight], n.rotate || 0); }
+    reg("批注「" + lines(n.text)[0] + "」", text(ng, n.x, n.y, n.text, { size, font: n.en ? FONT.en : FONT.hand, weight: n.weight || 700, rotate: n.rotate || 0, anchor: n.anchor || "start", fill: n.color || C.ink }), null, "notes." + i);
+    if (n.arrow) DOODLE.arrow(ng, n.arrow[0], n.arrow[1], n.arrowScale || 1, { angle: n.arrow[2] || 0 });
+  });
+  (spec.doodles || []).forEach((d, i) => { if (!DOODLE[d.type]) throw new Error(`没有这种小涂鸦：${d.type}`); seedFor("doodles." + i); const dg = tag(el("g", {}, layer), "doodles." + i); DOODLE[d.type](dg, d.x, d.y, d.s || 1, d); });
+  /* 署名 */
+  if (spec.signature && spec.signature.text) {
+    const sg = spec.signature, sx = sg.x == null ? 50 : sg.x, sy = sg.y == null ? H - 48 : sg.y;
+    seedFor("signature"); const g = reg("署名", tag(el("g", { transform: `rotate(-4 ${sx} ${sy})` }, layer), "signature"), null, "signature");
+    text(g, sx, sy, sg.text, { size: sg.size || 34, font: FONT.hand, weight: 700 });
+    const w = tw(sg.text, sg.size || 34, FONT.hand, 700);
+    wobblyLine(g, [[sx - 4, sy + 24], [sx + w * 0.5, sy + 30], [sx + w + 10, sy + 20]], { width: 2.5 });
+    if (sg.tagline) text(g, sx + 6, sy - 40, sg.tagline, { size: 18, font: FONT.hand, fill: C.gray });
+  }
+  return svg;
+}
+
+/* ---------- 页面逻辑 ---------- */
+const FALLBACK = { canvas: { width: 1600, height: 900, seed: 7 }, title: { lines: ["新的一张图"], x: 48, y: 74, size: 64 }, nodes: [], edges: [] };
+function decodeHash() {
+  const m = location.hash.match(/spec=([^&]+)/); if (!m) return null;
+  const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64 + "===".slice((b64.length + 3) % 4));
+  return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, ch => ch.charCodeAt(0))));
+}
+/* 画一张图，返回 { svg, warns }；render.py 读 body 上的 data-done / data-warn / data-error */
+function show(spec, opts) {
+  const stage = document.getElementById("stage"), err = document.getElementById("err");
+  try {
+    const svg = render(spec); stage.innerHTML = ""; stage.appendChild(svg);
+    const warns = opts && opts.skipCheck ? [] : overlaps(svg, spec);
+    err.textContent = "";
+    document.body.dataset.warn = JSON.stringify(warns.map(w => w.msg)); document.body.dataset.done = "1";
+    return { svg, warns };
+  } catch (e) {
+    err.textContent = "出错了：" + e.message; document.body.dataset.done = "error"; document.body.dataset.error = e.message; console.error(e);
+    return { svg: null, warns: [], error: e.message };
+  }
+}
+/* 检查元素之间有没有重叠、有没有超出画布 */
+function overlaps(svg, spec) {
+  const W = +svg.getAttribute("width"), H = +svg.getAttribute("height"), out = [];
+  const bb = BOXES.map(([name, g, owner, path]) => { const r = g.getBBox(); return { name, owner, path, x: r.x, y: r.y, w: r.width, h: r.height }; }).filter(b => b.w > 0);
+  const tol = (spec.canvas && spec.canvas.overlapTolerance) || 6;
+  bb.forEach(b => { if (b.x < 4 || b.y < 4 || b.x + b.w > W - 4 || b.y + b.h > H - 4) out.push({ msg: `${b.name} 超出了画布边缘`, paths: [b.path] }); });
+  for (let i = 0; i < bb.length; i++) for (let j = i + 1; j < bb.length; j++) {
+    const a = bb[i], b = bb[j]; if (a.owner === b.owner) continue;
+    const ix = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), iy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    if (ix > tol && iy > tol) out.push({ msg: `${a.name} 和 ${b.name} 重叠（${Math.round(ix)}×${Math.round(iy)}）`, paths: [a.path, b.path] });
+  }
+  return out;
+}
+function init() {
+  const injected = window.__SPEC__ || decodeHash();
+  const editMode = /(^#|&)edit(&|$)/.test(location.hash);
+  if (injected && !editMode) { document.body.classList.add("render"); show(injected); return; }
+  const fileName = (location.hash.match(/file=([^&]+)/) || [])[1];
+  if (window.Editor) window.Editor.start(injected, fileName ? decodeURIComponent(fileName) : null);
+  else show(injected || FALLBACK);
+}
+window.addEventListener("load", () => ((document.fonts && document.fonts.ready) || Promise.resolve()).then(init));
+</script>
+<script src="editor.js"></script>
+</body>
+</html>

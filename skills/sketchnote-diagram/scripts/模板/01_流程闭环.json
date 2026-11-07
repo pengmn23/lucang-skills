@@ -1,0 +1,209 @@
+{
+  "模板名": "流程闭环（16:9）",
+  "模板说明": "几个步骤连成一圈，左边进、右边出，底下绕回来；右侧栏放图例、清单和边界说明。",
+  "canvas": {
+    "width": 1600,
+    "height": 900,
+    "seed": 21
+  },
+  "title": {
+    "lines": [
+      "AI 作图，真正要学的不是提示词，是一套方法"
+    ],
+    "x": 48,
+    "y": 74,
+    "size": 64,
+    "mark": "是一套方法",
+    "maxWidth": 1150
+  },
+  "subtitle": {
+    "text": "FOUR CORE METHODS",
+    "x": 330,
+    "y": 152,
+    "size": 28
+  },
+  "nodes": [
+    {
+      "id": "idea",
+      "type": "input",
+      "x": 150,
+      "y": 320,
+      "size": 130,
+      "icon": "bulb",
+      "label": "想法",
+      "note": "讲什么\n给谁看"
+    },
+    {
+      "id": "content",
+      "type": "input",
+      "x": 150,
+      "y": 640,
+      "size": 130,
+      "icon": "book",
+      "label": "内容",
+      "note": "先有对的内容\n才有对的图"
+    },
+    {
+      "id": "prompt",
+      "type": "produce",
+      "x": 520,
+      "y": 440,
+      "size": 140,
+      "w": 210,
+      "icon": "list",
+      "label": "结构化提示词",
+      "note": "把要求一项一项说清楚",
+      "notePos": "above"
+    },
+    {
+      "id": "draw",
+      "type": "produce",
+      "x": 900,
+      "y": 440,
+      "size": 140,
+      "icon": "image",
+      "label": "出图",
+      "note": "AI 负责画"
+    },
+    {
+      "id": "judge",
+      "type": "feedback",
+      "x": 900,
+      "y": 735,
+      "size": 140,
+      "icon": "eye",
+      "label": "判断",
+      "note": "对不对\n好不好",
+      "notePos": "right"
+    },
+    {
+      "id": "tweak",
+      "type": "feedback",
+      "x": 520,
+      "y": 735,
+      "size": 140,
+      "w": 190,
+      "icon": "loop",
+      "label": "只改一处",
+      "note": "改一处\n看一次变化",
+      "notePos": "left"
+    }
+  ],
+  "edges": [
+    {
+      "from": "idea",
+      "to": "prompt",
+      "bend": -0.08
+    },
+    {
+      "from": "content",
+      "to": "prompt",
+      "bend": 0.08
+    },
+    {
+      "from": "prompt",
+      "to": "draw",
+      "bend": 0
+    },
+    {
+      "from": "draw",
+      "to": "judge",
+      "bend": 0
+    },
+    {
+      "from": "judge",
+      "to": "tweak",
+      "bend": 0
+    },
+    {
+      "from": "tweak",
+      "to": "prompt",
+      "bend": 0,
+      "label": "最小闭环",
+      "labelColor": "mint",
+      "labelDx": 72,
+      "labelRotate": -6
+    }
+  ],
+  "notes": [
+    {
+      "text": "开口之前，先想清楚！",
+      "x": 238,
+      "y": 236,
+      "size": 22,
+      "rotate": -5
+    },
+    {
+      "text": "改不好，\n别急着重新抽卡！",
+      "x": 660,
+      "y": 605,
+      "size": 21,
+      "rotate": -5
+    }
+  ],
+  "blocks": [
+    {
+      "kind": "sign",
+      "title": "边界说明",
+      "x": 1240,
+      "y": 12,
+      "w": 330,
+      "text": "AI 画得很快，\n但它不会替你负责。",
+      "size": 21
+    },
+    {
+      "kind": "list",
+      "title": "四条底层方法",
+      "x": 1110,
+      "y": 556,
+      "w": 460,
+      "h": 0,
+      "rowH": 48,
+      "size": 22,
+      "items": [
+        "用结构化的提示词作图",
+        "内容先行",
+        "先走完最小闭环，一次只改一处",
+        "AI 负责画，你负责判断"
+      ]
+    }
+  ],
+  "legend": {
+    "x": 1110,
+    "y": 274,
+    "w": 460,
+    "rowH": 42,
+    "items": [
+      {
+        "type": "input",
+        "text": "蓝=输入",
+        "desc": "想法和内容"
+      },
+      {
+        "type": "produce",
+        "text": "橙=生产",
+        "desc": "提示词和出图"
+      },
+      {
+        "type": "feedback",
+        "text": "绿=反馈",
+        "desc": "判断和修改"
+      }
+    ],
+    "arrowText": "箭头=先后顺序"
+  },
+  "doodles": [
+    {
+      "type": "sparkle",
+      "x": 70,
+      "y": 225,
+      "s": 0.7
+    },
+    {
+      "type": "star",
+      "x": 1070,
+      "y": 600,
+      "s": 0.7
+    }
+  ]
+}

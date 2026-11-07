@@ -1,0 +1,299 @@
+{
+  "模板名": "竖版 3:4（小红书）",
+  "模板说明": "上标题、中主图、下总结区，适合小红书等竖版平台。",
+  "canvas": {
+    "width": 1200,
+    "height": 1600,
+    "seed": 3
+  },
+  "title": {
+    "lines": [
+      "一篇图文笔记，",
+      "从灵感到复盘要连接哪些节点？"
+    ],
+    "x": 52,
+    "y": 88,
+    "size": 78,
+    "highlight": [
+      0
+    ],
+    "maxWidth": 900
+  },
+  "subtitle": {
+    "text": "CONTENT WORKFLOW NETWORK",
+    "x": 560,
+    "y": 272,
+    "size": 34
+  },
+  "legend": {
+    "x": 870,
+    "y": 318,
+    "w": 300,
+    "h": 360,
+    "items": [
+      {
+        "type": "input",
+        "text": "蓝=输入",
+        "desc": "提供灵感\n和信息"
+      },
+      {
+        "type": "produce",
+        "text": "橙=生产",
+        "desc": "内容创作\n与产出"
+      },
+      {
+        "type": "feedback",
+        "text": "绿=反馈",
+        "desc": "复盘总结\n与可复用"
+      }
+    ],
+    "rowH": 72,
+    "arrowText": "箭头=依赖方向",
+    "arrowDesc": "表示先后依赖关系"
+  },
+  "nodes": [
+    {
+      "id": "lg",
+      "type": "input",
+      "x": 262,
+      "y": 395,
+      "size": 160,
+      "icon": "bulb",
+      "label": "灵感",
+      "note": "一个想法\n一丝触动"
+    },
+    {
+      "id": "ly",
+      "type": "input",
+      "x": 545,
+      "y": 395,
+      "size": 160,
+      "icon": "doc",
+      "label": "来源",
+      "note": "书籍 / 经验 / 热点\n用户问题 / 日常观察"
+    },
+    {
+      "id": "xt",
+      "type": "produce",
+      "x": 300,
+      "y": 660,
+      "size": 150,
+      "icon": "target",
+      "label": "选题",
+      "note": "从灵感和信息中\n找到值得写的主题",
+      "notePos": "below"
+    },
+    {
+      "id": "wz",
+      "type": "produce",
+      "x": 520,
+      "y": 680,
+      "size": 150,
+      "icon": "pen",
+      "label": "文章",
+      "note": "整理思路\n写成图文"
+    },
+    {
+      "id": "ts",
+      "type": "produce",
+      "x": 760,
+      "y": 760,
+      "size": 150,
+      "w": 190,
+      "icon": "image",
+      "label": "出图提示词",
+      "note": "把想法转化为\n可生成的提示词"
+    },
+    {
+      "id": "tp",
+      "type": "produce",
+      "x": 1000,
+      "y": 790,
+      "size": 150,
+      "icon": "image",
+      "label": "图片",
+      "note": "生成或准备\n配图素材"
+    },
+    {
+      "id": "fb",
+      "type": "produce",
+      "x": 750,
+      "y": 1000,
+      "size": 150,
+      "icon": "plane",
+      "label": "发布",
+      "note": "让内容被更多人看到",
+      "notePos": "left"
+    },
+    {
+      "id": "fp",
+      "type": "feedback",
+      "x": 750,
+      "y": 1185,
+      "size": 150,
+      "icon": "chart",
+      "label": "复盘",
+      "note": "看效果、找问题\n总结经验"
+    },
+    {
+      "id": "mb",
+      "type": "feedback",
+      "x": 1045,
+      "y": 1185,
+      "size": 150,
+      "icon": "layers",
+      "label": "内部模板",
+      "note": "沉淀方法\n形成可复用的模板"
+    }
+  ],
+  "edges": [
+    {
+      "from": "lg",
+      "to": "xt",
+      "bend": 0.05
+    },
+    {
+      "from": "ly",
+      "to": "xt",
+      "bend": 0.12
+    },
+    {
+      "from": "ly",
+      "to": "wz",
+      "bend": -0.12
+    },
+    {
+      "from": "xt",
+      "to": "wz",
+      "bend": 0
+    },
+    {
+      "from": "wz",
+      "to": "ts",
+      "bend": 0.12
+    },
+    {
+      "from": "ts",
+      "to": "tp",
+      "bend": 0
+    },
+    {
+      "from": "wz",
+      "to": "fb",
+      "bend": 0.2
+    },
+    {
+      "from": "tp",
+      "to": "fb",
+      "bend": -0.2
+    },
+    {
+      "from": "fb",
+      "to": "fp",
+      "bend": 0
+    },
+    {
+      "from": "fp",
+      "to": "mb",
+      "bend": 0
+    },
+    {
+      "from": "fp",
+      "to": "xt",
+      "ctrl": [
+        420,
+        1040
+      ],
+      "label": "复盘返回选题\n让下一篇更好！",
+      "labelAt": 0.3,
+      "labelColor": "mint",
+      "labelDy": -14
+    }
+  ],
+  "notes": [
+    {
+      "text": "从一个灵感开始，\n让好内容不断循环\n生长！",
+      "x": 12,
+      "y": 555,
+      "size": 22,
+      "rotate": -8
+    },
+    {
+      "text": "好想法\n也能变成\n有价值的内容！",
+      "x": 965,
+      "y": 62,
+      "size": 22,
+      "rotate": -4
+    },
+    {
+      "text": "发布不是终点，\n而是下一次创作\n的起点！",
+      "x": 960,
+      "y": 1010,
+      "size": 24,
+      "rotate": -6
+    }
+  ],
+  "blocks": [
+    {
+      "kind": "sticky",
+      "x": 1015,
+      "y": 150,
+      "w": 150,
+      "h": 120,
+      "text": "记录\n→创作\n→成长",
+      "rotate": 6
+    },
+    {
+      "kind": "list",
+      "title": "关键关系",
+      "x": 26,
+      "y": 1108,
+      "w": 560,
+      "h": 250,
+      "items": [
+        "来源同时支持选题与文章",
+        "文章和图片共同进入发布",
+        "复盘返回选题"
+      ]
+    },
+    {
+      "kind": "loop",
+      "title": "关键回路",
+      "x": 26,
+      "y": 1380,
+      "w": 710,
+      "h": 150,
+      "flow": "选题 → 文章 → 出图提示词 → 图片 → 发布 → 复盘",
+      "desc": "形成从灵感到复盘的完整闭环，让内容持续迭代、不断变好。"
+    },
+    {
+      "kind": "sign",
+      "title": "边界说明",
+      "x": 800,
+      "y": 1352,
+      "w": 320,
+      "h": 205,
+      "text": "通用教学示例\n不是平台官方唯一流程。"
+    }
+  ],
+  "doodles": [
+    {
+      "type": "bulb",
+      "x": 70,
+      "y": 300,
+      "s": 0.8
+    },
+    {
+      "type": "sparkle",
+      "x": 920,
+      "y": 300,
+      "s": 0.8
+    },
+    {
+      "type": "sparkle",
+      "x": 1150,
+      "y": 1000,
+      "s": 0.8
+    }
+  ]
+}

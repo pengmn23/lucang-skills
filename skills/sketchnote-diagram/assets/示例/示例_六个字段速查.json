@@ -1,0 +1,147 @@
+{
+  "说明": "示例：一张横版速查图（来自 AI 图文教程第 01 章）。",
+  "output": "示例_六个字段速查.png",
+  "canvas": {
+    "width": 1600,
+    "height": 900,
+    "seed": 82
+  },
+  "title": {
+    "lines": [
+      "六个字段：把你的想法写清楚"
+    ],
+    "x": 48,
+    "y": 74,
+    "size": 64,
+    "mark": "六个字段",
+    "maxWidth": 1150
+  },
+  "subtitle": {
+    "text": "SIX FIELDS",
+    "x": 300,
+    "y": 152,
+    "size": 28
+  },
+  "nodes": [
+    {
+      "id": "t",
+      "type": "input",
+      "x": 190,
+      "y": 330,
+      "size": 120,
+      "icon": "target",
+      "label": "主题",
+      "note": "这张图讲什么"
+    },
+    {
+      "id": "s",
+      "type": "produce",
+      "x": 550,
+      "y": 330,
+      "size": 120,
+      "icon": "palette",
+      "label": "风格",
+      "note": "孟菲斯、手绘手账、\n扁平插画……"
+    },
+    {
+      "id": "h",
+      "type": "produce",
+      "x": 910,
+      "y": 330,
+      "size": 120,
+      "icon": "pen",
+      "label": "标题",
+      "note": "图上最大的那行字，\n别让模型替你起"
+    },
+    {
+      "id": "a",
+      "type": "input",
+      "x": 190,
+      "y": 660,
+      "size": 120,
+      "icon": "user",
+      "label": "受众",
+      "note": "给谁看，\n照实写"
+    },
+    {
+      "id": "l",
+      "type": "produce",
+      "x": 550,
+      "y": 660,
+      "size": 120,
+      "icon": "layers",
+      "label": "布局",
+      "note": "不会写，\n就写「模块化设计」"
+    },
+    {
+      "id": "m",
+      "type": "feedback",
+      "x": 910,
+      "y": 660,
+      "size": 120,
+      "w": 160,
+      "icon": "check",
+      "label": "必须达成",
+      "note": "简体中文、\n清晰易读，正确无误"
+    }
+  ],
+  "edges": [],
+  "blocks": [
+    {
+      "kind": "list",
+      "title": "小 Tips",
+      "icon": "megaphone",
+      "x": 1110,
+      "y": 430,
+      "w": 460,
+      "rowH": 56,
+      "size": 20,
+      "items": [
+        "比例、分辨率，先在平台设置里选",
+        "「必须达成」放在最后面",
+        "字段可以加，也可以减"
+      ]
+    },
+    {
+      "kind": "sticky",
+      "x": 1250,
+      "y": 718,
+      "w": 300,
+      "h": 140,
+      "text": "还记得做海报时，\n对方追着问的问题吗？\n就是这几个字段",
+      "size": 19,
+      "rotate": 3
+    }
+  ],
+  "legend": {
+    "x": 1110,
+    "y": 195,
+    "w": 460,
+    "rowH": 42,
+    "items": [
+      {
+        "type": "input",
+        "text": "蓝=输入",
+        "desc": "讲什么、给谁看"
+      },
+      {
+        "type": "produce",
+        "text": "橙=生产",
+        "desc": "画面怎么做"
+      },
+      {
+        "type": "feedback",
+        "text": "绿=反馈",
+        "desc": "一定要做到"
+      }
+    ]
+  },
+  "doodles": [
+    {
+      "type": "bulb",
+      "x": 1050,
+      "y": 210,
+      "s": 0.6
+    }
+  ]
+}

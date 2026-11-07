@@ -1,0 +1,92 @@
+{
+  "模板名": "空白横版（16:9）",
+  "模板说明": "只有标题、三种节点各一个、图例、清单，从这里自己搭。",
+  "canvas": {
+    "width": 1600,
+    "height": 900,
+    "seed": 7
+  },
+  "title": {
+    "lines": [
+      "标题写在这里，最关键的几个字高亮"
+    ],
+    "x": 48,
+    "y": 74,
+    "size": 64,
+    "mark": "最关键的几个字",
+    "maxWidth": 1150
+  },
+  "subtitle": {
+    "text": "ENGLISH SUBTITLE",
+    "x": 330,
+    "y": 152,
+    "size": 28
+  },
+  "nodes": [
+    {
+      "id": "in1",
+      "type": "input",
+      "x": 200,
+      "y": 470,
+      "size": 130,
+      "icon": "bulb",
+      "label": "输入",
+      "note": "资料、想法"
+    },
+    {
+      "id": "do1",
+      "type": "produce",
+      "x": 560,
+      "y": 470,
+      "size": 130,
+      "icon": "pen",
+      "label": "生产",
+      "note": "做出来的东西"
+    },
+    {
+      "id": "fb1",
+      "type": "feedback",
+      "x": 920,
+      "y": 470,
+      "size": 130,
+      "icon": "check",
+      "label": "反馈",
+      "note": "检查、复盘"
+    }
+  ],
+  "edges": [
+    {
+      "from": "in1",
+      "to": "do1",
+      "bend": 0
+    },
+    {
+      "from": "do1",
+      "to": "fb1",
+      "bend": 0
+    }
+  ],
+  "legend": {
+    "x": 1110,
+    "y": 230,
+    "w": 460,
+    "rowH": 42,
+    "arrowText": "箭头=先后顺序"
+  },
+  "blocks": [
+    {
+      "kind": "list",
+      "title": "关键关系",
+      "x": 1110,
+      "y": 520,
+      "w": 460,
+      "rowH": 48,
+      "size": 22,
+      "items": [
+        "第一条",
+        "第二条",
+        "第三条"
+      ]
+    }
+  ]
+}

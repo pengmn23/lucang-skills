@@ -1,0 +1,238 @@
+{
+  "模板名": "上下两组对比（16:9）",
+  "模板说明": "两个分组框，上面一组、下面一组，各自装几个节点；右侧栏放图例和关键关系。",
+  "canvas": {
+    "width": 1600,
+    "height": 900,
+    "seed": 32
+  },
+  "title": {
+    "lines": [
+      "AI 拿走了手艺门槛，留下了想法门槛"
+    ],
+    "x": 48,
+    "y": 74,
+    "size": 64,
+    "mark": "留下了想法门槛",
+    "maxWidth": 1150
+  },
+  "subtitle": {
+    "text": "CRAFT GOES, IDEAS STAY",
+    "x": 330,
+    "y": 152,
+    "size": 28
+  },
+  "blocks": [
+    {
+      "kind": "sticky",
+      "x": 1270,
+      "y": 26,
+      "w": 270,
+      "h": 150,
+      "text": "就像拍照：\n人人都会按快门，\n拍得好看的\n还是那么几个人",
+      "size": 19,
+      "rotate": 3
+    },
+    {
+      "kind": "box",
+      "title": "手艺门槛",
+      "x": 30,
+      "y": 195,
+      "w": 1050,
+      "h": 290,
+      "titleColor": "orange"
+    },
+    {
+      "kind": "box",
+      "title": "想法门槛",
+      "x": 30,
+      "y": 505,
+      "w": 1050,
+      "h": 370,
+      "titleColor": "blue"
+    },
+    {
+      "kind": "list",
+      "title": "关键关系",
+      "x": 1110,
+      "y": 510,
+      "w": 460,
+      "rowH": 50,
+      "size": 21,
+      "items": [
+        "手艺门槛：AI 把「画」接了过去",
+        "想法门槛：还在，而且更重要",
+        "跨过想法门槛，靠的是方法"
+      ]
+    }
+  ],
+  "legend": {
+    "x": 1110,
+    "y": 228,
+    "w": 460,
+    "rowH": 42,
+    "items": [
+      {
+        "type": "input",
+        "text": "蓝=输入",
+        "desc": "讲什么、给谁看"
+      },
+      {
+        "type": "produce",
+        "text": "橙=生产",
+        "desc": "画出来"
+      },
+      {
+        "type": "feedback",
+        "text": "绿=反馈",
+        "desc": "对不对、好不好"
+      }
+    ],
+    "arrowText": "箭头=先后顺序"
+  },
+  "nodes": [
+    {
+      "id": "draw",
+      "type": "produce",
+      "x": 150,
+      "y": 335,
+      "size": 110,
+      "icon": "brush",
+      "label": "画画",
+      "note": "以前得会画画"
+    },
+    {
+      "id": "ai",
+      "type": "produce",
+      "x": 555,
+      "y": 335,
+      "size": 130,
+      "icon": "wand",
+      "label": "AI 来画",
+      "note": "这道门槛几乎没有了"
+    },
+    {
+      "id": "soft",
+      "type": "produce",
+      "x": 960,
+      "y": 335,
+      "size": 110,
+      "icon": "palette",
+      "label": "设计软件",
+      "note": "或者会用设计软件"
+    },
+    {
+      "id": "what",
+      "type": "input",
+      "x": 140,
+      "y": 615,
+      "size": 100,
+      "icon": "chat",
+      "label": "讲什么",
+      "note": "这张图要讲什么？",
+      "notePos": "right"
+    },
+    {
+      "id": "who",
+      "type": "input",
+      "x": 140,
+      "y": 790,
+      "size": 100,
+      "icon": "user",
+      "label": "给谁看",
+      "note": "给谁看？",
+      "notePos": "right"
+    },
+    {
+      "id": "clear",
+      "type": "produce",
+      "x": 590,
+      "y": 690,
+      "size": 130,
+      "w": 160,
+      "icon": "list",
+      "label": "讲清楚",
+      "note": "怎么讲才清楚？"
+    },
+    {
+      "id": "judge",
+      "type": "feedback",
+      "x": 920,
+      "y": 690,
+      "size": 130,
+      "w": 160,
+      "icon": "check",
+      "label": "判断",
+      "note": "画出来以后，\n对不对、好不好？"
+    }
+  ],
+  "edges": [
+    {
+      "from": "draw",
+      "to": "ai",
+      "bend": 0,
+      "label": "交给 AI",
+      "labelColor": "mint",
+      "labelDy": -30
+    },
+    {
+      "from": "soft",
+      "to": "ai",
+      "bend": 0,
+      "label": "交给 AI",
+      "labelColor": "mint",
+      "labelDy": -30
+    },
+    {
+      "from": "what",
+      "to": "clear",
+      "bend": -0.06
+    },
+    {
+      "from": "who",
+      "to": "clear",
+      "bend": 0.06
+    },
+    {
+      "from": "clear",
+      "to": "judge",
+      "bend": 0
+    },
+    {
+      "from": "ai",
+      "to": "judge",
+      "bend": -0.1,
+      "dash": true
+    }
+  ],
+  "notes": [
+    {
+      "text": "挡住了很多人",
+      "x": 280,
+      "y": 238,
+      "size": 21,
+      "rotate": -4
+    },
+    {
+      "text": "变得更重要了！",
+      "x": 280,
+      "y": 548,
+      "size": 21,
+      "rotate": -4
+    }
+  ],
+  "doodles": [
+    {
+      "type": "exclaim",
+      "x": 460,
+      "y": 548,
+      "s": 0.6
+    },
+    {
+      "type": "sparkle",
+      "x": 1250,
+      "y": 200,
+      "s": 0.6
+    }
+  ]
+}
