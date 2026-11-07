@@ -1,0 +1,4 @@
+interface:
+  display_name: "文章转图片提示词"
+  short_description: "把文章做成单张或一套风格统一的图；也能七维拆解图片、把做过的图存成模板下次复用"
+  default_prompt: "使用 $article-to-images，把我的内容做成图片。先判断做一张还是一套，问清风格和文字密度，选好后再写完整 JSON 提示词。"
